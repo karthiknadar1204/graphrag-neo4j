@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import os
 from neo4j_graphrag.experimental.components.schema import SchemaFromTextExtractor
 from neo4j_graphrag.llm import OpenAILLM
 
