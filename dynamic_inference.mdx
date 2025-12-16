@@ -1,0 +1,182 @@
+## Explanation of `chunking_2/usecase5.py`
+
+This script runs a 3-step pipeline: extract schema → extract entities → write to Neo4j.
+
+---
+
+## Step-by-step breakdown
+
+### Step 1: Extract schema dynamically (lines 14-22)
+
+```python
+schema_extractor = SchemaFromTextExtractor(
+    llm=OpenAILLM(...)
+)
+extracted_schema = await schema_extractor.run(
+    text="Virat Kohli is an Indian cricketer, who playes for team RCB in IPL"
+)
+```
+
+What happens:
+- The LLM analyzes the text and infers a graph structure
+- It identifies node types, properties, relationship types, and allowed patterns
+- Returns a schema object (not actual data)
+
+Example output:
+```json
+{
+  "node_types": [
+    {"label": "PERSON", "properties": [{"name": "name", "type": "STRING"}]},
+    {"label": "TEAM", "properties": [{"name": "name", "type": "STRING"}]},
+    {"label": "LEAGUE", "properties": [{"name": "name", "type": "STRING"}]}
+  ],
+  "relationship_types": [
+    {"label": "PLAYS_FOR"},
+    {"label": "PARTICIPATES_IN"}
+  ],
+  "patterns": [
+    ["PERSON", "PLAYS_FOR", "TEAM"],
+    ["TEAM", "PARTICIPATES_IN", "LEAGUE"]
+  ]
+}
+```
+
+Why dynamic:
+- The schema is inferred from the text, not hardcoded
+- Works for different domains without manual schema design
+
+---
+
+### Step 2: Extract entities using the schema (lines 25-37)
+
+```python
+extractor = LLMEntityRelationExtractor(llm=OpenAILLM(...))
+chunks = TextChunks(chunks=[TextChunk(text="...", index=0)])
+
+graph = await extractor.run(chunks=chunks, schema=extracted_schema)
+```
+
+What happens:
+- The extractor uses the schema to guide extraction
+- It extracts entities that match the schema’s node types
+- It creates relationships that match the schema’s patterns
+- Ensures consistency with the inferred structure
+
+Key difference:
+- Without schema: extractor may use inconsistent labels/types
+- With schema: extractor follows the defined structure
+
+---
+
+### Step 3: Write to Neo4j (lines 45-46)
+
+```python
+writer = Neo4jWriter(driver=driver)
+await writer.run(graph)
+```
+
+What happens:
+- Creates nodes in Neo4j with labels and properties
+- Creates relationships between nodes
+- Uses the schema structure to ensure correct types
+
+---
+
+## How the steps work together
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    STEP 1: Schema Extraction                 │
+│  Text → SchemaFromTextExtractor → Schema Object             │
+│  "Virat Kohli..." → {node_types, relationships, patterns}    │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│              STEP 2: Entity Extraction (Guided)              │
+│  Text Chunks + Schema → LLMEntityRelationExtractor → Graph  │
+│  Uses schema to ensure extracted entities match structure  │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    STEP 3: Write to Neo4j                   │
+│  Graph → Neo4jWriter → Neo4j Database                      │
+│  Creates nodes and relationships in the database            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Why this approach
+
+### Comparison with usecase4
+
+| Aspect | usecase4 (hardcoded) | usecase5 (dynamic) |
+|--------|---------------------|---------------------|
+| Schema | Manually written | Extracted from text |
+| Flexibility | Fixed structure | Adapts to content |
+| Setup | Requires domain knowledge | Works automatically |
+| Use case | Known domain | Unknown/new domains |
+
+### Benefits of dynamic schema
+
+1. Adapts to different domains automatically
+2. Less manual work
+3. Handles new entity types from the text
+4. Ensures extraction follows the inferred structure
+
+---
+
+## Visual flow example
+
+```
+Input Text: "Virat Kohli is an Indian cricketer, who plays for team RCB in IPL"
+
+STEP 1: Schema Extraction
+├─ LLM analyzes text
+├─ Infers: "This is about cricket, players, teams, leagues"
+└─ Creates schema:
+   - Node types: PERSON, TEAM, LEAGUE
+   - Relationships: PLAYS_FOR, PARTICIPATES_IN
+   - Patterns: PERSON → PLAYS_FOR → TEAM
+
+STEP 2: Entity Extraction (with schema)
+├─ LLM extracts entities following the schema
+├─ Creates nodes:
+│  - PERSON {name: "Virat Kohli", nationality: "Indian"}
+│  - TEAM {name: "RCB"}
+│  - LEAGUE {name: "IPL"}
+└─ Creates relationships:
+   - Virat Kohli --[PLAYS_FOR]--> RCB
+   - RCB --[PARTICIPATES_IN]--> IPL
+
+STEP 3: Write to Neo4j
+├─ Creates nodes in database
+├─ Creates relationships
+└─ Data is now queryable in Neo4j
+```
+
+---
+
+## Key insight
+
+The schema acts as a blueprint:
+- Step 1 creates the blueprint from the text
+- Step 2 uses the blueprint to extract data consistently
+- Step 3 writes the structured data to Neo4j
+
+This ensures:
+- Consistency: all entities follow the same structure
+- Quality: relationships match defined patterns
+- Flexibility: schema adapts to different content types
+
+---
+
+## Summary
+
+1. Dynamic schema extraction: analyzes text to infer graph structure
+2. Guided entity extraction: uses the schema to extract consistent entities
+3. Database write: saves the structured graph to Neo4j
+
+The schema bridges understanding the text and extracting structured data.
