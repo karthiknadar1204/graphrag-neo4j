@@ -1,0 +1,222 @@
+
+
+## Big picture (what is this code doing?)
+
+You are building a **pipeline**:
+
+> **Component 1 → Component 2 → Final output**
+
+Each component:
+
+* does **one small job**
+* returns some data
+* passes that data to the next component
+
+Think of it like an **assembly line** 🏭.
+
+---
+
+## Step by step, very simply
+
+---
+
+## 1️⃣ Create a pipeline
+
+```python
+pipeline = Pipeline()
+```
+
+This is just an **empty flow**.
+
+Right now:
+
+* no components
+* nothing connected
+
+---
+
+## 2️⃣ Define what outputs look like
+
+```python
+class comp1output(DataModel):
+    value: str
+```
+
+```python
+class comp2output(DataModel):
+    value: str
+```
+
+These are just **data containers**.
+
+You’re saying:
+
+* “The output of comp1 will have a `value` which is a string”
+* “The output of comp2 will also have a `value` which is a string”
+
+Think of them like:
+
+```python
+{"value": "some text"}
+```
+
+---
+
+## 3️⃣ Define Component 1
+
+```python
+class comp1(Component):
+    async def run(self) -> comp1output:
+        return comp1output(value="output from comp1")
+```
+
+What this does:
+
+* It **does not take any input**
+* It always returns:
+
+```python
+{"value": "output from comp1"}
+```
+
+So comp1 is basically:
+
+> “Here, take this string.”
+
+---
+
+## 4️⃣ Define Component 2
+
+```python
+class comp2(Component):
+    async def run(self, input) -> comp2output:
+        return comp2output(value=f"{input}+ output from comp2")
+```
+
+What this does:
+
+* It **expects an input**
+* It appends `" + output from comp2"` to that input
+
+If input is:
+
+```text
+output from comp1
+```
+
+Then output becomes:
+
+```text
+output from comp1 + output from comp2
+```
+
+---
+
+## 5️⃣ Build the pipeline flow
+
+```python
+pipeline.add_component(comp1(), "comp1")
+pipeline.add_component(comp2(), "comp2")
+```
+
+Now your pipeline has:
+
+* a component called `"comp1"`
+* a component called `"comp2"`
+
+---
+
+## 6️⃣ Connect comp1 → comp2
+
+```python
+pipeline.connect("comp1", "comp2", {"input": "comp1.value"})
+```
+
+This is the **most important line**.
+
+It means:
+
+> “Take `comp1`’s output field `value`
+> and pass it as the `input` argument to `comp2`”
+
+So effectively:
+
+```python
+comp2.run(input=comp1_output.value)
+```
+
+---
+
+## 7️⃣ Run the pipeline
+
+```python
+result = await pipeline.run(data={})
+```
+
+What happens internally:
+
+1. `comp1.run()` runs
+   → returns `"output from comp1"`
+
+2. That value is passed into `comp2.run(input=...)`
+
+3. `comp2` returns:
+
+   ```
+   "output from comp1 + output from comp2"
+   ```
+
+---
+
+## 8️⃣ Read the final result
+
+```python
+print(result.result["comp2"]["value"])
+```
+
+`result.result` looks like this:
+
+```python
+{
+  "comp1": {"value": "output from comp1"},
+  "comp2": {"value": "output from comp1 + output from comp2"}
+}
+```
+
+So you print:
+
+```text
+output from comp1 + output from comp2
+```
+
+---
+
+## Final mental model 🧠
+
+Think of it like this:
+
+```text
+comp1:
+  produces → "output from comp1"
+
+comp2:
+  takes input → "output from comp1"
+  produces → "output from comp1 + output from comp2"
+```
+
+Pipeline just:
+
+* runs them in order
+* wires the output of one into the input of the next
+
+---
+
+## One-line summary
+
+> **You created two async components, connected the output of the first to the input of the second, ran them in order, and printed the final result.**
+
+If you want next:
+
+* I can explain **why DataModel exists**
+* or **how this maps to GraphRAG / Neo4j**
+* or **how to add branching (1 → 2 → 3)**
