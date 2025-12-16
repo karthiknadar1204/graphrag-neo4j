@@ -1,0 +1,74 @@
+additional_node_types: false
+additional_patterns: false
+additional_relationship_types: false
+node_types:
+- additional_properties: false
+  description: An individual human being.
+  label: PERSON
+  properties:
+  - description: The full name of the person.
+    name: name
+    required: false
+    type: STRING
+  - description: The country of citizenship.
+    name: nationality
+    required: false
+    type: STRING
+- additional_properties: true
+  description: A person who plays the sport of cricket.
+  label: CRICKETER
+  properties: []
+- additional_properties: false
+  description: A sports team.
+  label: TEAM
+  properties:
+  - description: The name of the team.
+    name: name
+    required: false
+    type: STRING
+- additional_properties: false
+  description: An association of sports teams that organizes matches.
+  label: LEAGUE
+  properties:
+  - description: The name of the league.
+    name: name
+    required: false
+    type: STRING
+- additional_properties: false
+  description: A domain of competitive physical activity.
+  label: SPORT
+  properties:
+  - description: The name of the sport.
+    name: name
+    required: false
+    type: STRING
+patterns:
+- - PERSON
+  - HAS_ROLE
+  - CRICKETER
+- - CRICKETER
+  - PLAYS_FOR
+  - TEAM
+- - TEAM
+  - PARTICIPATES_IN
+  - LEAGUE
+- - LEAGUE
+  - BELONGS_TO
+  - SPORT
+relationship_types:
+- additional_properties: true
+  description: Indicates the role a person has.
+  label: HAS_ROLE
+  properties: []
+- additional_properties: true
+  description: Indicates the team for which a player plays.
+  label: PLAYS_FOR
+  properties: []
+- additional_properties: true
+  description: Indicates the league in which a team participates.
+  label: PARTICIPATES_IN
+  properties: []
+- additional_properties: true
+  description: Indicates the sport a league belongs to.
+  label: BELONGS_TO
+  properties: []

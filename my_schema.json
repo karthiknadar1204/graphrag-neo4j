@@ -1,0 +1,119 @@
+{
+  "node_types": [
+    {
+      "label": "PERSON",
+      "description": "An individual human being.",
+      "properties": [
+        {
+          "name": "name",
+          "type": "STRING",
+          "description": "The full name of the person.",
+          "required": false
+        },
+        {
+          "name": "nationality",
+          "type": "STRING",
+          "description": "The country of citizenship.",
+          "required": false
+        }
+      ],
+      "additional_properties": false
+    },
+    {
+      "label": "CRICKETER",
+      "description": "A person who plays the sport of cricket.",
+      "properties": [],
+      "additional_properties": true
+    },
+    {
+      "label": "TEAM",
+      "description": "A sports team.",
+      "properties": [
+        {
+          "name": "name",
+          "type": "STRING",
+          "description": "The name of the team.",
+          "required": false
+        }
+      ],
+      "additional_properties": false
+    },
+    {
+      "label": "LEAGUE",
+      "description": "An association of sports teams that organizes matches.",
+      "properties": [
+        {
+          "name": "name",
+          "type": "STRING",
+          "description": "The name of the league.",
+          "required": false
+        }
+      ],
+      "additional_properties": false
+    },
+    {
+      "label": "SPORT",
+      "description": "A domain of competitive physical activity.",
+      "properties": [
+        {
+          "name": "name",
+          "type": "STRING",
+          "description": "The name of the sport.",
+          "required": false
+        }
+      ],
+      "additional_properties": false
+    }
+  ],
+  "relationship_types": [
+    {
+      "label": "HAS_ROLE",
+      "description": "Indicates the role a person has.",
+      "properties": [],
+      "additional_properties": true
+    },
+    {
+      "label": "PLAYS_FOR",
+      "description": "Indicates the team for which a player plays.",
+      "properties": [],
+      "additional_properties": true
+    },
+    {
+      "label": "PARTICIPATES_IN",
+      "description": "Indicates the league in which a team participates.",
+      "properties": [],
+      "additional_properties": true
+    },
+    {
+      "label": "BELONGS_TO",
+      "description": "Indicates the sport a league belongs to.",
+      "properties": [],
+      "additional_properties": true
+    }
+  ],
+  "patterns": [
+    [
+      "PERSON",
+      "HAS_ROLE",
+      "CRICKETER"
+    ],
+    [
+      "CRICKETER",
+      "PLAYS_FOR",
+      "TEAM"
+    ],
+    [
+      "TEAM",
+      "PARTICIPATES_IN",
+      "LEAGUE"
+    ],
+    [
+      "LEAGUE",
+      "BELONGS_TO",
+      "SPORT"
+    ]
+  ],
+  "additional_node_types": false,
+  "additional_relationship_types": false,
+  "additional_patterns": false
+}
