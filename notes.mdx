@@ -1,0 +1,288 @@
+## Difference: Schema vs. Data extraction
+
+### SchemaFromTextExtractor — creates a blueprint
+
+What it does:
+- Extracts the structure/template of your knowledge graph
+- Defines what types of nodes and relationships can exist
+- Does not extract actual data
+
+Output: A schema (blueprint) that defines:
+- Node types (e.g., `PERSON`, `TEAM`, `LEAGUE`)
+- Properties for each node type (e.g., `name: STRING`, `nationality: STRING`)
+- Relationship types (e.g., `PLAYS_FOR`, `PARTICIPATES_IN`)
+- Patterns (allowed connections like `PERSON → HAS_ROLE → CRICKETER`)
+
+Example schema output:
+```json
+{
+  "node_types": [
+    {
+      "label": "PERSON",
+      "properties": [
+        {"name": "name", "type": "STRING"},
+        {"name": "nationality", "type": "STRING"}
+      ]
+    }
+  ],
+  "relationship_types": [
+    {"label": "PLAYS_FOR"}
+  ],
+  "patterns": [
+    ["PERSON", "PLAYS_FOR", "TEAM"]
+  ]
+}
+```
+
+Think of it as: a database schema — defines the structure, not the data.
+
+---
+
+### LLMEntityRelationExtractor — extracts actual data
+
+What it does:
+- Extracts actual entities and relationships from text
+- Creates concrete nodes with real values
+- Creates relationships between specific entities
+
+Output: A graph with actual data:
+- Nodes with labels and properties (e.g., `Person {name: "Virat Kohli", nationality: "Indian"}`)
+- Relationships between specific nodes (e.g., `Virat Kohli --[PLAYS_FOR]--> RCB`)
+
+Example output:
+```
+Nodes:
+  - Person: {name: "Virat Kohli", nationality: "Indian"}
+  - Team: {name: "RCB"}
+  - League: {name: "IPL"}
+
+Relationships:
+  - PLAYS_FOR: Person[Virat Kohli] -> Team[RCB]
+```
+
+Think of it as: actual database records — real data instances.
+
+---
+
+## Analogy
+
+- Schema = blueprint of a house (rooms, doors, windows)
+- Entity extraction = building the house with actual furniture and people
+
+---
+
+## When to use each
+
+Use SchemaFromTextExtractor when:
+- You want to design your graph structure first
+- You need to define what types of entities and relationships are allowed
+- You're setting up a knowledge graph for future data
+
+Use LLMEntityRelationExtractor when:
+- You have text and want to extract actual entities and relationships
+- You want to populate your graph with real data
+- You're processing documents to build a knowledge graph
+
+---
+
+## In your code
+
+```python
+# SchemaFromTextExtractor - Gets the TEMPLATE
+schema = await schema_extractor.run(text="...")
+# Returns: "You can have PERSON nodes with name/nationality properties"
+
+# LLMEntityRelationExtractor - Gets the ACTUAL DATA  
+graph = await extractor.run(chunks=chunks)
+# Returns: "Here's a Person node: {name: 'Virat Kohli', nationality: 'Indian'}"
+```
+
+In practice, you often:
+1. First extract the schema (design your graph structure)
+2. Then use that schema to guide entity extraction (populate with data)
+
+The schema ensures consistency — all extracted entities follow the same structure you defined.
+
+
+## How chunking works in LLMEntityRelationExtractor
+
+### Important point: chunking is manual
+
+`LLMEntityRelationExtractor` does not automatically chunk text. You create the chunks yourself and pass them in.
+
+### Step-by-step process
+
+#### 1. You create chunks manually (lines 11-18)
+
+```python
+chunks = TextChunks(chunks=[
+    TextChunk(
+        text="Virat Kohli is an Indian cricketer,who plays for team RCB in IPL",
+        index=0
+    )
+])
+```
+
+You decide:
+- How to split your text
+- How many chunks to create
+- What goes in each chunk
+
+#### 2. The extractor processes each chunk independently
+
+When you call `extractor.run(chunks=chunks)`, here's what happens:
+
+```
+For each TextChunk in chunks:
+    1. Send the chunk's text to the LLM
+    2. LLM extracts entities and relationships from that chunk
+    3. Store the results with reference to the chunk's index
+    4. Move to next chunk
+```
+
+#### 3. Results are combined
+
+After processing all chunks, the extractor combines all results into a single graph object.
+
+---
+
+## Example with multiple chunks
+
+Here's how it would work with multiple chunks:
+
+```python
+# Example: Long document split into 3 chunks
+chunks = TextChunks(chunks=[
+    TextChunk(
+        text="Virat Kohli is an Indian cricketer. He was born in Delhi.",
+        index=0
+    ),
+    TextChunk(
+        text="He plays for team RCB in the Indian Premier League.",
+        index=1
+    ),
+    TextChunk(
+        text="RCB is based in Bangalore and was founded in 2008.",
+        index=2
+    )
+])
+
+graph = await extractor.run(chunks=chunks)
+```
+
+Processing flow:
+
+```
+Chunk 0 (index=0):
+  → LLM processes: "Virat Kohli is an Indian cricketer. He was born in Delhi."
+  → Extracts: Person(Virat Kohli), City(Delhi), relationship: BORN_IN
+
+Chunk 1 (index=1):
+  → LLM processes: "He plays for team RCB in the Indian Premier League."
+  → Extracts: Person(Virat Kohli), Team(RCB), League(IPL), relationship: PLAYS_FOR
+
+Chunk 2 (index=2):
+  → LLM processes: "RCB is based in Bangalore and was founded in 2008."
+  → Extracts: Team(RCB), City(Bangalore), relationship: BASED_IN, property: founded=2008
+
+Final Graph:
+  → Combines all nodes and relationships from all 3 chunks
+  → May merge duplicate entities (e.g., "Virat Kohli" from chunk 0 and 1)
+```
+
+---
+
+## Why chunking matters
+
+### 1. Token limits
+- LLMs have token limits (e.g., 4K, 8K, 128K tokens)
+- Large documents may exceed the limit
+- Solution: split into smaller chunks
+
+### 2. Context quality
+- Smaller chunks can improve extraction accuracy
+- LLM focuses on a smaller context
+- Reduces confusion from mixing unrelated information
+
+### 3. Parallel processing
+- Each chunk can be processed independently
+- Can process multiple chunks in parallel (if the extractor supports it)
+- Faster processing for large documents
+
+### 4. Tracking provenance
+- The `index` field tracks which chunk produced which entities
+- Useful for debugging and understanding source
+
+---
+
+## How to chunk your text
+
+You need to implement chunking yourself. Common strategies:
+
+### Strategy 1: Fixed size chunks
+```python
+def chunk_text(text, chunk_size=500):
+    words = text.split()
+    chunks = []
+    for i in range(0, len(words), chunk_size):
+        chunk_text = ' '.join(words[i:i+chunk_size])
+        chunks.append(TextChunk(text=chunk_text, index=i//chunk_size))
+    return TextChunks(chunks=chunks)
+```
+
+### Strategy 2: Sentence-based chunks
+```python
+import re
+
+def chunk_by_sentences(text, sentences_per_chunk=5):
+    sentences = re.split(r'[.!?]+', text)
+    chunks = []
+    for i in range(0, len(sentences), sentences_per_chunk):
+        chunk_text = '. '.join(sentences[i:i+sentences_per_chunk])
+        chunks.append(TextChunk(text=chunk_text, index=i//sentences_per_chunk))
+    return TextChunks(chunks=chunks)
+```
+
+### Strategy 3: Paragraph-based chunks
+```python
+def chunk_by_paragraphs(text):
+    paragraphs = text.split('\n\n')
+    chunks = []
+    for i, para in enumerate(paragraphs):
+        if para.strip():  # Skip empty paragraphs
+            chunks.append(TextChunk(text=para.strip(), index=i))
+    return TextChunks(chunks=chunks)
+```
+
+---
+
+## Important points
+
+1. Chunking is your responsibility — the extractor doesn't do it automatically
+2. Each chunk is processed independently — the LLM sees one chunk at a time
+3. Results are combined — all chunks contribute to the final graph
+4. The `index` field is for tracking — helps you know which chunk produced which data
+5. Overlap can help — sometimes overlapping chunks (e.g., 50 words overlap) can improve entity linking across boundaries
+
+---
+
+## In your current code
+
+```python
+# You have 1 chunk with index 0
+chunks = TextChunks(chunks=[
+    TextChunk(text="...", index=0)  # Single chunk
+])
+
+# Extractor processes this 1 chunk
+graph = await extractor.run(chunks=chunks)
+# Result: Graph with entities extracted from that single chunk
+```
+
+For a longer document, you would:
+1. Split the document into multiple chunks
+2. Create a `TextChunk` for each piece
+3. Pass all chunks to the extractor
+4. Get a combined graph with entities from all chunks
+
+The extractor processes each chunk separately and combines the results.
